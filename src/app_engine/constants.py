@@ -6,6 +6,9 @@ This module contains the constants used in AppRTC Python modules.
 """
 import os
 
+ROOM_SIZE = 4
+AUTO_DESTROY_ROOM_SIZE = 1
+
 # Deprecated domains which we should to redirect to REDIRECT_URL.
 REDIRECT_DOMAINS =  [
   'apprtc.appspot.com', 'apprtc.webrtc.org', 'www.appr.tc'

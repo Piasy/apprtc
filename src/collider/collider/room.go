@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const maxRoomCapacity = 2
+const maxRoomCapacity = 4
 
 type room struct {
 	parent *roomTable

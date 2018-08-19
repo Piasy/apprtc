@@ -312,44 +312,21 @@ def get_room_parameters(request, room_id, client_id, is_initiator):
     params['is_initiator'] = json.dumps(is_initiator)
   return params
 
-# For now we have (room_id, client_id) pairs are 'unique' but client_ids are
-# not. Uniqueness is not enforced however and bad things may happen if RNG
-# generates non-unique numbers. We also have a special loopback client id.
-# TODO(tkchin): Generate room/client IDs in a unique way while handling
-# loopback scenario correctly.
-class Client:
-  def __init__(self, is_initiator):
-    self.is_initiator = is_initiator
-    self.messages = []
-  def add_message(self, msg):
-    self.messages.append(msg)
-  def clear_messages(self):
-    self.messages = []
-  def set_initiator(self, initiator):
-    self.is_initiator = initiator
-  def __str__(self):
-    return '{%r, %d}' % (self.is_initiator, len(self.messages))
-
 class Room:
   def __init__(self):
-    self.clients = {}
-  def add_client(self, client_id, client):
-    self.clients[client_id] = client
+    self.clients = []
+  def add_client(self, client_id):
+    self.clients.append(client_id)
   def remove_client(self, client_id):
-    del self.clients[client_id]
+    self.clients.remove(client_id)
   def get_occupancy(self):
     return len(self.clients)
   def has_client(self, client_id):
     return client_id in self.clients
-  def get_client(self, client_id):
-    return self.clients[client_id]
-  def get_other_client(self, client_id):
-    for key, client in self.clients.items():
-      if key is not client_id:
-        return client
-    return None
+  def get_other_clients(self, client_id):
+    return [uid for uid in self.clients if uid is not client_id]
   def __str__(self):
-    return str(self.clients.keys())
+    return str(self.clients)
 
 def get_memcache_key_for_room(host, room_id):
   return '%s/%s' % (host, room_id)
@@ -363,8 +340,7 @@ def add_client_to_room(request, room_id, client_id, is_loopback):
   # Compare and set retry loop.
   while True:
     is_initiator = None
-    messages = []
-    room_state = ''
+    other_clients = []
     room = memcache_client.gets(key)
     if room is None:
       # 'set' and another 'gets' are needed for CAS to work.
@@ -375,39 +351,37 @@ def add_client_to_room(request, room_id, client_id, is_loopback):
       room = memcache_client.gets(key)
 
     occupancy = room.get_occupancy()
-    if occupancy >= 2:
+    if occupancy >= constants.ROOM_SIZE:
       error = constants.RESPONSE_ROOM_FULL
       break
     if room.has_client(client_id):
-      error = constants.RESPONSE_DUPLICATE_CLIENT
+      is_initiator = False
+      other_clients = room.get_other_clients(client_id)
       break
 
     if occupancy == 0:
       is_initiator = True
-      room.add_client(client_id, Client(is_initiator))
+      room.add_client(client_id)
       if is_loopback:
-        room.add_client(constants.LOOPBACK_CLIENT_ID, Client(False))
+        room.add_client(constants.LOOPBACK_CLIENT_ID)
     else:
       is_initiator = False
-      other_client = room.get_other_client(client_id)
-      messages = other_client.messages
-      room.add_client(client_id, Client(is_initiator))
-      other_client.clear_messages()
+      other_clients = room.get_other_clients(client_id)
+      room.add_client(client_id)
 
     if memcache_client.cas(key, room, constants.ROOM_MEMCACHE_EXPIRATION_SEC):
       logging.info('Added client %s in room %s, retries = %d' \
           %(client_id, room_id, retries))
 
-      if room.get_occupancy() == 2:
+      if room.get_occupancy() == constants.ROOM_SIZE:
         analytics.report_event(analytics.EventType.ROOM_SIZE_2,
                                room_id,
                                host=request.host)
-      success = True
       break
     else:
       retries = retries + 1
   return {'error': error, 'is_initiator': is_initiator,
-          'messages': messages, 'room_state': str(room)}
+          'peers': other_clients, 'room_state': str(room)}
 
 def remove_client_from_room(host, room_id, client_id):
   key = get_memcache_key_for_room(host, room_id)
@@ -427,45 +401,13 @@ def remove_client_from_room(host, room_id, client_id):
     room.remove_client(client_id)
     if room.has_client(constants.LOOPBACK_CLIENT_ID):
       room.remove_client(constants.LOOPBACK_CLIENT_ID)
-    if room.get_occupancy() > 0:
-      room.get_other_client(client_id).set_initiator(True)
-    else:
+    if room.get_occupancy() <= constants.AUTO_DESTROY_ROOM_SIZE:
       room = None
 
     if memcache_client.cas(key, room, constants.ROOM_MEMCACHE_EXPIRATION_SEC):
       logging.info('Removed client %s from room %s, retries=%d' \
           %(client_id, room_id, retries))
       return {'error': None, 'room_state': str(room)}
-    retries = retries + 1
-
-def save_message_from_client(host, room_id, client_id, message):
-  text = None
-  try:
-      text = message.encode(encoding='utf-8', errors='strict')
-  except Exception as e:
-    return {'error': constants.RESPONSE_ERROR, 'saved': False}
-
-  key = get_memcache_key_for_room(host, room_id)
-  memcache_client = memcache.Client()
-  retries = 0
-  # Compare and set retry loop.
-  while True:
-    room = memcache_client.gets(key)
-    if room is None:
-      logging.warning('Unknown room: ' + room_id)
-      return {'error': constants.RESPONSE_UNKNOWN_ROOM, 'saved': False}
-    if not room.has_client(client_id):
-      logging.warning('Unknown client: ' + client_id)
-      return {'error': constants.RESPONSE_UNKNOWN_CLIENT, 'saved': False}
-    if room.get_occupancy() > 1:
-      return {'error': None, 'saved': False}
-
-    client = room.get_client(client_id)
-    client.add_message(text)
-    if memcache_client.cas(key, room, constants.ROOM_MEMCACHE_EXPIRATION_SEC):
-      logging.info('Saved message for client %s:%s in room %s, retries=%d' \
-          %(client_id, str(client), room_id, retries))
-      return {'error': None, 'saved': True}
     retries = retries + 1
 
 class LeavePage(webapp2.RequestHandler):
@@ -498,37 +440,29 @@ class MessagePage(webapp2.RequestHandler):
 
   def post(self, room_id, client_id):
     message_json = self.request.body
-    result = save_message_from_client(
-        self.request.host_url, room_id, client_id, message_json)
-    if result['error'] is not None:
-      self.write_response(result['error'])
-      return
-    if not result['saved']:
-      # Other client joined, forward to collider. Do this outside the lock.
-      # Note: this may fail in local dev server due to not having the right
-      # certificate file locally for SSL validation.
-      # Note: loopback scenario follows this code path.
-      # TODO(tkchin): consider async fetch here.
-      self.send_message_to_collider(room_id, client_id, message_json)
-    else:
-      self.write_response(constants.RESPONSE_SUCCESS)
+    # Other client joined, forward to collider. Do this outside the lock.
+    # Note: this may fail in local dev server due to not having the right
+    # certificate file locally for SSL validation.
+    # Note: loopback scenario follows this code path.
+    # TODO(tkchin): consider async fetch here.
+    self.send_message_to_collider(room_id, client_id, message_json)
 
 class JoinPage(webapp2.RequestHandler):
-  def write_response(self, result, params, messages):
+  def write_response(self, result, params, peers):
     # TODO(tkchin): Clean up response format. For simplicity put everything in
     # params for now.
-    params['messages'] = messages
+    params['peers'] = peers
     self.response.write(json.dumps({
       'result': result,
       'params': params
     }))
 
-  def write_room_parameters(self, room_id, client_id, messages, is_initiator):
+  def write_room_parameters(self, room_id, client_id, peers, is_initiator):
     params = get_room_parameters(self.request, room_id, client_id, is_initiator)
-    self.write_response('SUCCESS', params, messages)
+    self.write_response('SUCCESS', params, peers)
 
   def post(self, room_id):
-    client_id = generate_random(8)
+    client_id = self.request.POST['uid']
     is_loopback = self.request.get('debug') == 'loopback'
     result = add_client_to_room(self.request, room_id, client_id, is_loopback)
     if result['error'] is not None:
@@ -538,7 +472,7 @@ class JoinPage(webapp2.RequestHandler):
       return
 
     self.write_room_parameters(
-        room_id, client_id, result['messages'], result['is_initiator'])
+        room_id, client_id, result['peers'], result['is_initiator'])
     logging.info('User ' + client_id + ' joined room ' + room_id)
     logging.info('Room ' + room_id + ' has state ' + result['room_state'])
 
@@ -571,7 +505,7 @@ class RoomPage(webapp2.RequestHandler):
         get_memcache_key_for_room(self.request.host_url, room_id))
     if room is not None:
       logging.info('Room ' + room_id + ' has state ' + str(room))
-      if room.get_occupancy() >= 2:
+      if room.get_occupancy() >= constants.ROOM_SIZE:
         logging.info('Room ' + room_id + ' is full')
         self.write_response('full_template.html')
         return
