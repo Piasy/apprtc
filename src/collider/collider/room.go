@@ -7,7 +7,6 @@ package collider
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -76,7 +75,7 @@ func (rm *room) register(clientID string, rwc io.ReadWriteCloser) error {
 }
 
 // send sends the message to the other client of the room, or queues the message if the other client has not joined.
-func (rm *room) send(srcClientID string, msg string) error {
+func (rm *room) send(srcClientID string, dstClientID string, msg string) error {
 	src, err := rm.client(srcClientID)
 	if err != nil {
 		return err
@@ -89,13 +88,15 @@ func (rm *room) send(srcClientID string, msg string) error {
 
 	// Send the message to the other client of the room.
 	for _, oc := range rm.clients {
-		if oc.id != srcClientID {
-			return src.send(oc, msg)
+		if oc.id != srcClientID && (dstClientID == "" || dstClientID == oc.id) {
+			err1 := src.send(oc, msg)
+			if err1 != nil {
+				err = err1
+			}
 		}
 	}
 
-	// The room must be corrupted.
-	return errors.New(fmt.Sprintf("Corrupted room %+v", rm))
+	return err
 }
 
 // remove closes the client connection and removes the client specified by the |clientID|.

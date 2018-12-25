@@ -63,12 +63,12 @@ func (rt *roomTable) removeLocked(rid string, cid string) {
 }
 
 // send forwards the message to the room. If the room does not exist, it will create one.
-func (rt *roomTable) send(rid string, srcID string, msg string) error {
+func (rt *roomTable) send(rid string, srcID string, dstID string, msg string) error {
 	rt.lock.Lock()
 	defer rt.lock.Unlock()
 
 	r := rt.roomLocked(rid)
-	return r.send(srcID, msg)
+	return r.send(srcID, dstID, msg)
 }
 
 // register forwards the register request to the room. If the room does not exist, it will create one.

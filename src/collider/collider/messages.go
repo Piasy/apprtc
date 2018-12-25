@@ -15,6 +15,7 @@ type wsClientMsg struct {
 	Cmd      string `json:"cmd"`
 	RoomID   string `json:"roomid"`
 	ClientID string `json:"clientid"`
+	ReceiverID string `json:"receiverid"`
 	Msg      string `json:"msg"`
 }
 

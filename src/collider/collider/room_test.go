@@ -80,7 +80,7 @@ func TestRoomSendQueued(t *testing.T) {
 	r := createNewRoom("a")
 	id := "1"
 	m := "hi"
-	if err := r.send(id, m); err != nil {
+	if err := r.send(id, "", m); err != nil {
 		t.Errorf("room.send(%q, %q) got error: %s, want nil", id, m, err.Error())
 	}
 
@@ -97,7 +97,7 @@ func TestRoomSendImmediately(t *testing.T) {
 	id1, id2, m := "1", "2", "hi"
 	r.register(id2, &rwc)
 
-	if err := r.send(id1, m); err != nil {
+	if err := r.send(id1, "", m); err != nil {
 		t.Errorf("room.send(%q, %q) got error: %s, want nil", id1, m, err.Error())
 	}
 	c, _ := r.client("1")

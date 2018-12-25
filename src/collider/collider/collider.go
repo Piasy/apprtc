@@ -119,7 +119,7 @@ func (c *Collider) httpHandler(w http.ResponseWriter, r *http.Request) {
 			c.httpError("Empty request body", w)
 			return
 		}
-		if err := c.roomTable.send(rid, cid, m); err != nil {
+		if err := c.roomTable.send(rid, cid, "", m); err != nil {
 			c.httpError("Failed to send the message: "+err.Error(), w)
 			return
 		}
@@ -192,7 +192,7 @@ loop:
 				c.wsError("Invalid send request: missing 'msg'", ws)
 				break loop
 			}
-			c.roomTable.send(rid, cid, msg.Msg)
+			c.roomTable.send(rid, cid, msg.ReceiverID, msg.Msg)
 			break
 		default:
 			c.wsError("Invalid message: unexpected 'cmd'", ws)
