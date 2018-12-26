@@ -57,7 +57,6 @@ func TestRoomRegister(t *testing.T) {
 	r := createNewRoom("a")
 	id1 := "1"
 	c1, _ := r.client(id1)
-	c1.enqueue("hello")
 
 	rwc := collidertest.MockReadWriteCloser{Closed: false}
 	id2 := "2"
@@ -72,21 +71,6 @@ func TestRoomRegister(t *testing.T) {
 	}
 	if rwc.Msg == "" {
 		t.Error("After enqueuing a message on the first client and the second client c2 registers, c2.rwc.Msg is empty, want non-empty")
-	}
-}
-
-// Tests that the message sent before the second client joins will be queued.
-func TestRoomSendQueued(t *testing.T) {
-	r := createNewRoom("a")
-	id := "1"
-	m := "hi"
-	if err := r.send(id, "", m); err != nil {
-		t.Errorf("room.send(%q, %q) got error: %s, want nil", id, m, err.Error())
-	}
-
-	c, _ := r.client(id)
-	if len(c.msgs) != 1 {
-		t.Errorf("After room.send(%q, %q), room.client(%q).msgs = %v, want of size 1", id, m, c.msgs)
 	}
 }
 

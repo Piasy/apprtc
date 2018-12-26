@@ -19,8 +19,6 @@ type client struct {
 	// rwc is the interface to access the websocket connection.
 	// It is set after the client registers with the server.
 	rwc io.ReadWriteCloser
-	// msgs is the queued messages sent from this client.
-	msgs []string
 	// timer is used to remove this client if unregistered after a timeout.
 	timer *time.Timer
 }
@@ -61,28 +59,6 @@ func (c *client) registered() bool {
 	return c.rwc != nil
 }
 
-// enqueue adds a message to the client's message queue.
-func (c *client) enqueue(msg string) error {
-	if len(c.msgs) >= maxQueuedMsgCount {
-		return errors.New("Too many messages queued for the client")
-	}
-	c.msgs = append(c.msgs, msg)
-	return nil
-}
-
-// sendQueued the queued messages to the other client.
-func (c *client) sendQueued(other *client) error {
-	if c.id == other.id || other.rwc == nil {
-		return errors.New("Invalid client")
-	}
-	for _, m := range c.msgs {
-		sendServerMsg(other.rwc, m)
-	}
-	c.msgs = nil
-	log.Printf("Sent queued messages from %s to %s", c.id, other.id)
-	return nil
-}
-
 // send sends the message to the other client if the other client has registered,
 // or queues the message otherwise.
 func (c *client) send(other *client, msg string) error {
@@ -92,5 +68,5 @@ func (c *client) send(other *client, msg string) error {
 	if other.rwc != nil {
 		return sendServerMsg(other.rwc, msg)
 	}
-	return c.enqueue(msg)
+	return nil
 }

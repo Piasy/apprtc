@@ -9,7 +9,6 @@ import (
 	"errors"
 	"io"
 	"log"
-	"net/http"
 	"time"
 )
 
@@ -65,12 +64,6 @@ func (rm *room) register(clientID string, rwc io.ReadWriteCloser) error {
 
 	log.Printf("Client %s registered in room %s", clientID, rm.id)
 
-	// Sends the queued messages from the other client of the room.
-	if len(rm.clients) > 1 {
-		for _, otherClient := range rm.clients {
-			otherClient.sendQueued(c)
-		}
-	}
 	return nil
 }
 
@@ -79,11 +72,6 @@ func (rm *room) send(srcClientID string, dstClientID string, msg string) error {
 	src, err := rm.client(srcClientID)
 	if err != nil {
 		return err
-	}
-
-	// Queue the message if the other client has not joined.
-	if len(rm.clients) == 1 {
-		return rm.clients[srcClientID].enqueue(msg)
 	}
 
 	// Send the message to the other client of the room.
@@ -105,15 +93,6 @@ func (rm *room) remove(clientID string) {
 		c.deregister()
 		delete(rm.clients, clientID)
 		log.Printf("Removed client %s from room %s", clientID, rm.id)
-
-		// Send bye to the room Server.
-		resp, err := http.Post(rm.roomSrvUrl+"/bye/"+rm.id+"/"+clientID, "text", nil)
-		if err != nil {
-			log.Printf("Failed to post BYE to room server %s: %v", rm.roomSrvUrl, err)
-		}
-		if resp != nil && resp.Body != nil {
-			resp.Body.Close()
-		}
 	}
 }
 
