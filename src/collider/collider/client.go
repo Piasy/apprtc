@@ -61,12 +61,12 @@ func (c *client) registered() bool {
 
 // send sends the message to the other client if the other client has registered,
 // or queues the message otherwise.
-func (c *client) send(other *client, msg string) error {
+func (c *client) send(other *client, receiverID, msg string) error {
 	if c.id == other.id {
 		return errors.New("Invalid client")
 	}
 	if other.rwc != nil {
-		return sendServerMsg(other.rwc, msg)
+		return sendServerMsg(other.rwc, receiverID, msg)
 	}
 	return nil
 }

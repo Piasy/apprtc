@@ -76,11 +76,9 @@ func (rm *room) send(srcClientID string, dstClientID string, msg string) error {
 
 	// Send the message to the other client of the room.
 	for _, oc := range rm.clients {
-		if oc.id != srcClientID && (dstClientID == "" || dstClientID == oc.id) {
-			err1 := src.send(oc, msg)
-			if err1 != nil {
-				err = err1
-			}
+		err1 := src.send(oc, dstClientID, msg)
+		if err1 != nil {
+			err = err1
 		}
 	}
 

@@ -21,13 +21,15 @@ type wsClientMsg struct {
 
 // wsServerMsg is a message sent to a client on behalf of another client.
 type wsServerMsg struct {
+	ReceiverID string `json:"receiverid"`
 	Msg   string `json:"msg"`
 	Error string `json:"error"`
 }
 
 // sendServerMsg sends a wsServerMsg composed from |msg| to the connection.
-func sendServerMsg(w io.Writer, msg string) error {
+func sendServerMsg(w io.Writer, receiverID, msg string) error {
 	m := wsServerMsg{
+		ReceiverID: receiverID,
 		Msg: msg,
 	}
 	return send(w, m)
