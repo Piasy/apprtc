@@ -76,6 +76,8 @@ func (rm *room) send(srcClientID string, dstClientID string, msg string) error {
 
 	// Send the message to the other client of the room.
 	for _, oc := range rm.clients {
+		log.Printf("Send message, rid %s, srcId %s, dstId %s", rm.id, srcClientID, oc.id)
+
 		err1 := src.send(oc, dstClientID, msg)
 		if err1 != nil {
 			err = err1

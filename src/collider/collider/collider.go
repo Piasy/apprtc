@@ -164,6 +164,8 @@ loop:
 			break
 		}
 
+		log.Printf("Receive %s, rid %s, srcId %s, dstId %s, body %s", msg.Cmd, msg.RoomID, msg.ClientID, msg.ReceiverID, msg.Msg)
+
 		switch msg.Cmd {
 		case "register":
 			if registered {
