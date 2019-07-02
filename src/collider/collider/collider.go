@@ -101,11 +101,11 @@ func (c *Collider) httpHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Access-Control-Allow-Methods", "POST, DELETE")
 
 	p := strings.Split(r.URL.Path, "/")
-	if len(p) != 3 {
+	if len(p) != 4 {
 		c.httpError("Invalid path: "+html.EscapeString(r.URL.Path), w)
 		return
 	}
-	rid, cid := p[1], p[2]
+	rid, from_uid, to_uid := p[1], p[2], p[3]
 
 	switch r.Method {
 	case "POST":
@@ -119,12 +119,12 @@ func (c *Collider) httpHandler(w http.ResponseWriter, r *http.Request) {
 			c.httpError("Empty request body", w)
 			return
 		}
-		if err := c.roomTable.send(rid, cid, "", m); err != nil {
+		if err := c.roomTable.send(rid, from_uid, to_uid, m); err != nil {
 			c.httpError("Failed to send the message: "+err.Error(), w)
 			return
 		}
 	case "DELETE":
-		c.roomTable.remove(rid, cid)
+		c.roomTable.remove(rid, from_uid)
 	default:
 		return
 	}

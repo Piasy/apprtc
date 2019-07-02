@@ -44,6 +44,9 @@ ICE_SERVER_BASE_URL = 'http://SERVER_PUBLIC_IP:3033'
 ICE_SERVER_URL_TEMPLATE = '%s/iceconfig?key=%s'
 ICE_SERVER_API_KEY = os.environ.get('ICE_SERVER_API_KEY')
 
+ICE_SERVER_IP = 'SERVER_PUBLIC_IP'
+UNDER_UNIT_TEST = False
+
 # Dictionary keys in the collider instance info constant.
 WSS_INSTANCE_HOST_KEY = 'host_port_pair'
 WSS_INSTANCE_NAME_KEY = 'vm_name'
