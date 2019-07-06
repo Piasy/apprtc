@@ -78,8 +78,10 @@ class Room:
   def __init__(self):
     self.users = []
     self.conns = {}
+    self.user_active_time = {}
   def add_user(self, uid):
     self.users.append(uid)
+    self.user_active_time[uid] = int(time.time())
   def remove_user(self, uid):
     removed_conns = []
     n = len(self.users)
@@ -93,14 +95,25 @@ class Room:
           removed_conns.append(get_conn_key(offerer, answerer))
         j = j - 1
       i = i - 1
-    self.users.remove(uid)
     for conn in removed_conns:
       self.conns.pop(conn, None)
+    self.users.remove(uid)
+    self.user_active_time.pop(uid, None)
   def get_occupancy(self):
     return len(self.users)
   def has_user(self, uid):
     return uid in self.users
   def refresh_conns(self, invoker, pc_err, memcache_client):
+    now = int(time.time())
+    self.user_active_time[invoker] = now
+    timeout_users = []
+    for uid in self.users:
+      if now - self.user_active_time.get(uid, 0) >= constants.USER_TIMEOUT_SECONDS:
+        timeout_users.append(uid)
+
+    for uid in timeout_users:
+      self.remove_user(uid)
+
     res = []
     updated = False
 
