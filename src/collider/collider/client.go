@@ -8,7 +8,6 @@ package collider
 import (
 	"errors"
 	"io"
-	"log"
 	"time"
 )
 
@@ -37,10 +36,13 @@ func (c *client) setTimer(t *time.Timer) {
 
 // register binds the ReadWriteCloser to the client if it's not done yet.
 func (c *client) register(rwc io.ReadWriteCloser) error {
-	if c.rwc != nil {
-		log.Printf("Not registering because the client %s already has a connection", c.id)
-		return errors.New("Duplicated registration")
-	}
+	// when client lost network, and trying to reconnect when network recover,
+	// it's possible that the client isn't deregisterred, so we should allow
+	// duplicated registration
+	// if c.rwc != nil {
+	// 	log.Printf("Not registering because the client %s already has a connection", c.id)
+	// 	return errors.New("Duplicated registration")
+	// }
 	c.setTimer(nil)
 	c.rwc = rwc
 	return nil
